@@ -13,6 +13,6 @@ def generate_1d_regression(
         return y
 
     rng = np.random.RandomState(seed)
-    xs = rng.uniform(*domain, size=n_points)
-    ys = f(xs) + rng.normal(0.0, noise_std, size=n_points)
+    xs = rng.uniform(*domain, size=n_points).astype(np.float32).reshape(-1, 1)
+    ys = (f(xs) + rng.normal(0.0, noise_std, size=n_points)).astype(np.float32)
     return xs, ys
