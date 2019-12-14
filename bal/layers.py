@@ -4,12 +4,17 @@ from torch import distributions, nn, Tensor
 
 
 class AdaptiveLinear(nn.Linear):
-    def __init__(self, in_features, out_features, bias=True):
+    def __init__(self,
+                 in_features,
+                 out_features,
+                 bias=True,
+                 temperature=1.0):
         super(AdaptiveLinear, self).__init__(in_features, out_features, bias)
         self.size_var = nn.Parameter(Tensor(), requires_grad=True)
+        self.temperature = temperature
         self.size_dist = distributions.RelaxedOneHotCategorical(
             temperature=self.temperature,
-            logits=self.size_var
+            probs=self.size_var
         )
         lower_triang = np.tril(np.ones(
             (self.out_features, self.out_features)))
