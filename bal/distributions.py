@@ -6,11 +6,11 @@ _SQRT2 = math.sqrt(2)
 
 
 class TruncatedNormal(Distribution):
-    def __init__(self, loc, scale, low, high):
-        self._loc = torch.as_tensor(loc)
-        self._scale = torch.as_tensor(scale)
-        self._low = torch.as_tensor(low)
-        self._high = torch.as_tensor(high)
+    def __init__(self, loc, scale, low, high, dtype=torch.float32):
+        self._loc = torch.as_tensor(loc, dtype=dtype)
+        self._scale = torch.as_tensor(scale, dtype=dtype)
+        self._low = torch.as_tensor(low, dtype=dtype)
+        self._high = torch.as_tensor(high, dtype=dtype)
 
     @property
     def loc(self):
@@ -37,7 +37,7 @@ class TruncatedNormal(Distribution):
         return samples
 
     def log_prob(self, x, **kwargs):
-        broadcasted_x = x * torch.ones(*self.loc.shape)
+        broadcasted_x = x * torch.ones_like(self.loc)
         logits = torch.where(
             (broadcasted_x < self.low) | (broadcasted_x > self.high),
             torch.ones_like(broadcasted_x),
@@ -46,7 +46,7 @@ class TruncatedNormal(Distribution):
         return logits
 
     def _log_unnormalised_prob(self, x):
-        broadcasted_x = x * torch.ones(*self.loc.shape)
+        broadcasted_x = x * torch.ones_like(self.loc)
         probs = torch.where(
             (broadcasted_x < self.low) | (broadcasted_x > self.high),
             torch.zeros_like(broadcasted_x),
