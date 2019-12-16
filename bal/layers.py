@@ -56,12 +56,44 @@ class AdaptiveSize(nn.Module):
         )
         return dist_posterior, dist_prior
 
-    def forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor):
         # sample the size from the posterior distribution
         # and compute the soft mask from the lower triangular matrix
-        mask = self._tril @ self.posterior.sample()
+        post_sample = self.posterior.sample(sample_shape=(input.shape[0],))
+        mask = self._tril @ post_sample
         res = input * mask
         return res
 
     def extra_repr(self) -> str:
         return f"min_size={self.min_size}, max_size={self.max_size}"
+
+
+class GaussianLikelihood(nn.Module):
+    def __init__(self, mode="heteroscedastic"):
+        super(GaussianLikelihood, self).__init__()
+        self.mode = mode
+        if mode == "homoscedastic":
+            init_spi_scale = torch.log(
+                torch.exp(torch.as_tensor(1.0)) - 1.0
+            )
+            self.var_spi_scale = nn.Parameter(
+                init_spi_scale,
+                requires_grad=True
+            )
+        elif mode == "heteroscedastic":
+            self.var_spi_scale = None
+        else:
+            self.var_spi_scale = torch.log(
+                torch.exp(torch.as_tensor(float(mode))) - 1.0
+            )
+        self.dist_lik = distributions.Normal
+
+    def forward(self, *inputs):
+        if self.mode == "heteroscedastic":
+            spi_scale = inputs[1]
+        else:
+            spi_scale = self.var_spi_scale
+        likelihood = self.dist_lik(
+            inputs[0], nn.functional.softplus(spi_scale)
+        )
+        return likelihood
