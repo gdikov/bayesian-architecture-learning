@@ -1,5 +1,5 @@
 import math
-from pyro.distributions import Distribution
+from torch.distributions import Distribution
 import torch
 
 _SQRT2 = math.sqrt(2)
@@ -7,6 +7,7 @@ _SQRT2 = math.sqrt(2)
 
 class TruncatedNormal(Distribution):
     def __init__(self, loc, scale, low, high, dtype=torch.float32):
+        super(TruncatedNormal, self).__init__()
         self._loc = torch.as_tensor(loc, dtype=dtype)
         self._scale = torch.as_tensor(scale, dtype=dtype)
         self._low = torch.as_tensor(low, dtype=dtype)
