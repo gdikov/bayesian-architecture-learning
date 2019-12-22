@@ -78,7 +78,7 @@ class AdaptiveSize(nn.Module):
         )
         # sample the size from the posterior distribution
         # and compute the soft mask from the lower triangular matrix
-        post_sample = self.posterior.rsample(sample_shape=(input.shape[0],))
+        post_sample = self.posterior.rsample()
         mask = post_sample @ self._tril
         res = input * mask
         return res
