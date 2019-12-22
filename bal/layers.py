@@ -4,7 +4,18 @@ from torch import distributions, nn, Tensor
 from bal.distributions import TruncatedNormal
 
 
-class AdaptiveSize(nn.Module):
+class BayesianLayer(nn.Module):
+    def __init__(self):
+        super(BayesianLayer, self).__init__()
+
+    def _build_prior(self, *args):
+        pass
+
+    def _build_posterior(self, *args):
+        pass
+
+
+class AdaptiveSize(BayesianLayer):
     def __init__(self,
                  min_size,
                  max_size,
@@ -54,7 +65,10 @@ class AdaptiveSize(nn.Module):
             high=self.max_size
         )
         logits_prior = tn_prior.log_prob(self._categories)
-        dist_prior = distributions.OneHotCategorical(logits=logits_prior)
+        dist_prior = distributions.RelaxedOneHotCategorical(
+            logits=logits_prior,
+            temperature=torch.tensor(0.1, dtype=torch.float32, requires_grad=False)
+        )
         return dist_prior
 
     def _build_posterior(self, param_loc, param_spi_scale):
@@ -87,6 +101,44 @@ class AdaptiveSize(nn.Module):
         return f"min_size={self.min_size}, max_size={self.max_size}"
 
 
+class SkipConnection(BayesianLayer):
+    def __init__(self,
+                 prior_prob=0.5,
+                 temperature=1.0):
+        super(SkipConnection, self).__init__()
+        self.temperature = torch.tensor(
+            temperature,
+            dtype=torch.float32,
+            requires_grad=False
+        )
+        prior_prob_t = torch.tensor(prior_prob, dtype=torch.float32)
+        # compute the inverse softplus scale
+        prior_logit_t = torch.log(prior_prob_t) - torch.log(1.0 - prior_prob_t)
+        self.prior = self._build_prior(prior_logit_t)
+        self.var_logit = nn.Parameter(
+            prior_logit_t,
+            requires_grad=True
+        )
+        self.posterior = self._build_posterior(self.var_logit)
+
+    def _build_prior(self, init_logit):
+        dist_prior = distributions.Bernoulli(logits=init_logit)
+        return dist_prior
+
+    def _build_posterior(self, param_logit):
+        dist_posterior = distributions.RelaxedBernoulli(
+            logits=param_logit,
+            temperature=self.temperature
+        )
+        return dist_posterior
+
+    def forward(self, input: Tensor, output: Tensor):
+        self.posterior = self._build_posterior(self.var_prob)
+        skip_prob = self.posterior.rsample()
+        res = skip_prob * input + (1.0 - skip_prob) * output
+        return res
+
+
 class GaussianLikelihood(nn.Module):
     def __init__(self, mode="heteroscedastic"):
         super(GaussianLikelihood, self).__init__()
@@ -114,5 +166,20 @@ class GaussianLikelihood(nn.Module):
             spi_scale = self.var_spi_scale
         likelihood = self.dist_lik(
             inputs[0], nn.functional.softplus(spi_scale)
+        )
+        return likelihood
+
+    def extra_repr(self) -> str:
+        return f"scale type={self.mode}"
+
+
+class CategoricalLikelihood(nn.Module):
+    def __init__(self):
+        super(CategoricalLikelihood, self).__init__()
+        self.dist_lik = distributions.OneHotCategorical
+
+    def forward(self, inputs):
+        likelihood = self.dist_lik(
+            logits=inputs
         )
         return likelihood
