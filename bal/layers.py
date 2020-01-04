@@ -4,6 +4,9 @@ from torch import distributions, nn, Tensor
 from bal.distributions import TruncatedNormal
 
 
+_LOG_EPSILON = -18.4207     # == log(1e-8)
+
+
 class BayesianLayer(nn.Module):
     def __init__(self):
         super(BayesianLayer, self).__init__()
@@ -56,31 +59,29 @@ class AdaptiveSize(BayesianLayer):
         self.posterior = self._build_posterior(self.var_loc, self.var_spi_scale)
 
     def _build_prior(self, init_loc, init_spi_scale):
-        # build the prior distribution
-        init_scale = nn.functional.softplus(init_spi_scale)
         tn_prior = TruncatedNormal(
             loc=init_loc,
-            scale=init_scale,
+            scale=torch.clamp_min(nn.functional.softplus(init_spi_scale), 1e-3),
             low=self.min_size,
             high=self.max_size
         )
         logits_prior = tn_prior.log_prob(self._categories)
         dist_prior = distributions.RelaxedOneHotCategorical(
-            logits=logits_prior,
-            temperature=torch.tensor(0.1, dtype=torch.float32, requires_grad=False)
+            logits=torch.clamp_min(logits_prior, _LOG_EPSILON),
+            temperature=torch.tensor(1e-3, dtype=torch.float32)
         )
         return dist_prior
 
     def _build_posterior(self, param_loc, param_spi_scale):
         tn_posterior = TruncatedNormal(
-            loc=param_loc,
-            scale=nn.functional.softplus(param_spi_scale),
+            loc=torch.clamp(param_loc, self.min_size - 1, self.max_size + 1),
+            scale=torch.clamp_min(nn.functional.softplus(param_spi_scale), 1e-3),
             low=self.min_size,
             high=self.max_size
         )
         logits_posterior = tn_posterior.log_prob(self._categories)
         dist_posterior = distributions.RelaxedOneHotCategorical(
-            logits=logits_posterior,
+            logits=torch.clamp_min(logits_posterior, _LOG_EPSILON),
             temperature=self.temperature
         )
         return dist_posterior
@@ -91,7 +92,7 @@ class AdaptiveSize(BayesianLayer):
             param_spi_scale=self.var_spi_scale
         )
         # sample the size from the posterior distribution
-        # and compute the soft mask from the lower triangular matrix
+        # and compute a soft mask from a lower triangular matrix
         post_sample = self.posterior.rsample()
         mask = post_sample @ self._tril
         res = input * mask
@@ -140,10 +141,10 @@ class SkipConnection(BayesianLayer):
 
 
 class GaussianLikelihood(nn.Module):
-    def __init__(self, mode="heteroscedastic"):
+    def __init__(self, scale="heteroscedastic"):
         super(GaussianLikelihood, self).__init__()
-        self.mode = mode
-        if mode == "homoscedastic":
+        self.scale = scale
+        if scale == "homoscedastic":
             init_spi_scale = torch.log(
                 torch.exp(torch.as_tensor(1.0, dtype=torch.float32)) - 1.0
             )
@@ -151,16 +152,16 @@ class GaussianLikelihood(nn.Module):
                 init_spi_scale,
                 requires_grad=True
             )
-        elif mode == "heteroscedastic":
+        elif scale == "heteroscedastic":
             self.var_spi_scale = None
         else:
             self.var_spi_scale = torch.log(
-                torch.exp(torch.as_tensor(float(mode), dtype=torch.float32)) - 1.0
+                torch.exp(torch.as_tensor(float(scale), dtype=torch.float32)) - 1.0
             )
         self.dist_lik = distributions.Normal
 
     def forward(self, *inputs):
-        if self.mode == "heteroscedastic":
+        if self.scale == "heteroscedastic":
             spi_scale = inputs[1]
         else:
             spi_scale = self.var_spi_scale
@@ -170,7 +171,7 @@ class GaussianLikelihood(nn.Module):
         return likelihood
 
     def extra_repr(self) -> str:
-        return f"scale type={self.mode}"
+        return f"scale type={self.scale}"
 
 
 class CategoricalLikelihood(nn.Module):
