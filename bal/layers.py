@@ -24,7 +24,8 @@ class AdaptiveSize(BayesianLayer):
                  max_size,
                  prior_loc=1.0,
                  prior_scale=1.0,
-                 temperature=1.0):
+                 temperature=1.0,
+                 prior_temperature=1e-3):
         super(AdaptiveSize, self).__init__()
         self.min_size = min_size
         self.max_size = max_size
@@ -47,7 +48,7 @@ class AdaptiveSize(BayesianLayer):
         prior_spi_scale_t = torch.log(
             torch.exp(prior_scale_t) - 1.0
         )
-        self.prior = self._build_prior(prior_loc_t, prior_spi_scale_t)
+        self.prior = self._build_prior(prior_loc_t, prior_spi_scale_t, prior_temperature)
         self.var_loc = nn.Parameter(
             prior_loc_t,
             requires_grad=True
@@ -58,7 +59,7 @@ class AdaptiveSize(BayesianLayer):
         )
         self.posterior = self._build_posterior(self.var_loc, self.var_spi_scale)
 
-    def _build_prior(self, init_loc, init_spi_scale):
+    def _build_prior(self, init_loc, init_spi_scale, prior_temperature):
         tn_prior = TruncatedNormal(
             loc=init_loc,
             scale=torch.clamp_min(nn.functional.softplus(init_spi_scale), 1e-3),
@@ -68,7 +69,7 @@ class AdaptiveSize(BayesianLayer):
         logits_prior = tn_prior.log_prob(self._categories)
         dist_prior = distributions.RelaxedOneHotCategorical(
             logits=torch.clamp_min(logits_prior, _LOG_EPSILON),
-            temperature=torch.tensor(1e-3, dtype=torch.float32)
+            temperature=torch.tensor(prior_temperature, dtype=torch.float32)
         )
         return dist_prior
 
