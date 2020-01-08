@@ -21,7 +21,7 @@ def animate_layer(data, predictions, layer_stats, max_size, output_path=None):
 
     xs_test, ys_test = predictions
     fit = axs[0].plot(xs_test.ravel(), ys_test[0].ravel())[0]
-    domain_tn = np.arange(max(max_size, 200))
+    domain_tn = np.linspace(1, max_size, 500)
     tn = axs[1].plot(domain_tn, np.zeros_like(domain_tn))[0]
     axs[1].set_ylim([-0.1, 4.0])
     axs[1].set_xlabel("Number of units", fontsize=15)
