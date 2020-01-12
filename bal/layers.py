@@ -59,10 +59,10 @@ class AdaptiveSize(BayesianLayer):
         )
         self.posterior = self._build_posterior(self.var_loc, self.var_spi_scale)
 
-    def _build_prior(self, init_loc, init_spi_scale, prior_temperature):
+    def _build_prior(self, prior_loc, prior_spi_scale, prior_temperature):
         tn_prior = TruncatedNormal(
-            loc=init_loc,
-            scale=torch.clamp_min(nn.functional.softplus(init_spi_scale), 1e-3),
+            loc=prior_loc,
+            scale=torch.clamp_min(nn.functional.softplus(prior_spi_scale), 1e-3),
             low=self.min_size,
             high=self.max_size
         )
@@ -106,7 +106,8 @@ class AdaptiveSize(BayesianLayer):
 class SkipConnection(BayesianLayer):
     def __init__(self,
                  prior_prob=0.5,
-                 temperature=1.0):
+                 temperature=1.0,
+                 prior_temperature=1e-3):
         super(SkipConnection, self).__init__()
         self.temperature = torch.tensor(
             temperature,
@@ -114,17 +115,19 @@ class SkipConnection(BayesianLayer):
             requires_grad=False
         )
         prior_prob_t = torch.tensor(prior_prob, dtype=torch.float32)
-        # compute the inverse softplus scale
         prior_logit_t = torch.log(prior_prob_t) - torch.log(1.0 - prior_prob_t)
-        self.prior = self._build_prior(prior_logit_t)
+        self.prior = self._build_prior(prior_logit_t, prior_temperature)
         self.var_logit = nn.Parameter(
             prior_logit_t,
             requires_grad=True
         )
         self.posterior = self._build_posterior(self.var_logit)
 
-    def _build_prior(self, init_logit):
-        dist_prior = distributions.Bernoulli(logits=init_logit)
+    def _build_prior(self, prior_logit, prior_temperature):
+        dist_prior = distributions.RelaxedBernoulli(
+            logits=torch.clamp_min(prior_logit, _LOG_EPSILON),
+            temperature=torch.tensor(prior_temperature, dtype=torch.float32)
+        )
         return dist_prior
 
     def _build_posterior(self, param_logit):
@@ -135,7 +138,7 @@ class SkipConnection(BayesianLayer):
         return dist_posterior
 
     def forward(self, input: Tensor, output: Tensor):
-        self.posterior = self._build_posterior(self.var_prob)
+        self.posterior = self._build_posterior(self.var_logit)
         skip_prob = self.posterior.rsample()
         res = skip_prob * input + (1.0 - skip_prob) * output
         return res
