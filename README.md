@@ -9,7 +9,7 @@ For a high-level overview of the approach refer to the following
 [blog post](https://argmax.ai/blog/archopt/).
 
 ## Citation
-
+```
 @InProceedings{pmlr-v89-dikov19a,
   title     = 	 {Bayesian Learning of Neural Network Architectures},
   author    = 	 {Dikov, Georgi and Bayer, Justin},
@@ -21,3 +21,4 @@ For a high-level overview of the approach refer to the following
   pdf       = 	 {http://proceedings.mlr.press/v89/dikov19a/dikov19a.pdf},
   url       = 	 {http://proceedings.mlr.press/v89/dikov19a.html},
 }
+```
