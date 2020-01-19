@@ -81,7 +81,7 @@ def animate_adaptive_layer(data, predictions, layer_stats, max_size, output_path
         repeat_delay=1000
     )
 
-    ani.save(f"{output_path}/animation.mp4")
+    ani.save(output_path)
     return ani
 
 
@@ -143,5 +143,5 @@ def animate_skipped_layers(data, predictions, layer_stats, max_size, output_path
         repeat_delay=1000
     )
 
-    ani.save(f"{output_path}/animation.mp4")
+    ani.save(output_path)
     return ani

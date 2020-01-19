@@ -17,6 +17,13 @@ class BayesianLayer(nn.Module):
     def _build_posterior(self, *args):
         pass
 
+    def kl_posterior_prior(self, n_samples=1):
+        samples_q = self.posterior.rsample((n_samples,))
+        kl = torch.mean(
+            self.posterior.log_prob(samples_q) - self.prior.log_prob(samples_q)
+        )
+        return kl
+
 
 class AdaptiveSize(BayesianLayer):
     def __init__(self,
