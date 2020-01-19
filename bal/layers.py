@@ -139,7 +139,7 @@ class SkipConnection(BayesianLayer):
 
     def _build_posterior(self, param_logit):
         dist_posterior = distributions.RelaxedBernoulli(
-            logits=param_logit,
+            logits=torch.clamp_min(param_logit, _LOG_EPSILON),
             temperature=self.temperature
         )
         return dist_posterior
