@@ -183,15 +183,3 @@ class GaussianLikelihood(nn.Module):
 
     def extra_repr(self) -> str:
         return f"scale type={self.scale}"
-
-
-class CategoricalLikelihood(nn.Module):
-    def __init__(self):
-        super(CategoricalLikelihood, self).__init__()
-        self.dist_lik = distributions.OneHotCategorical
-
-    def forward(self, inputs):
-        likelihood = self.dist_lik(
-            logits=inputs
-        )
-        return likelihood
